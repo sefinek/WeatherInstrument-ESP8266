@@ -17,31 +17,50 @@ int currentPressure       = 0;
 float currentPressure_hPa = 0;
 int currentLight          = 0;
 
-long readTime = 0;
+long readTime             = 0;
 long uploadTimeThingSpeak = 0;
 long uploadTimeSefinek    = 0;
 
 Adafruit_BMP085 bmpSensor;
 BH1750 lightSensor;
 
+void checkConfig() {
+  if (strlen(WIFI_SSID) == 0) {
+    Serial.println(F("[CONFIG ERROR] WIFI_SSID is empty."));
+    while (true);
+  }
+
+  if (strlen(WIFI_PASSWORD) == 0) {
+    Serial.println(F("[CONFIG ERROR] WIFI_PASSWORD is empty."));
+    while (true);
+  }
+
+  if (strlen(THINGSPEAK_SECRET) == 0) {
+    Serial.println(F("[CONFIG ERROR] THINGSPEAK_SECRET is empty."));
+    while (true);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
+  checkConfig();
+
   Wire.begin(SDA_BH1750_BMP180_Pin, SCL_BH1750_BMP180_Pin);
   lightSensor.begin();
 
   if (!bmpSensor.begin()) {
-    Serial.println("[BOOT] BMP180 not found. Halting.");
+    Serial.println(F("[BOOT] BMP180 not found. Halting."));
     while (true);
   }
-  Serial.println("[BOOT] BMP180 ready");
+  Serial.println(F("[BOOT] BMP180 ready"));
 
-  Serial.print("[BOOT] Connecting to WiFi");
+  Serial.print(F("[BOOT] Connecting to Wi-Fi"));
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\n[BOOT] WiFi connected");
+  Serial.println(F("\n[BOOT] Wi-Fi connected"));
 
   clientThingSpeak.setTimeout(300000);
   clientSefinek.setTimeout(300000);
@@ -63,11 +82,11 @@ retry:
 
   loopCnt = 10000;
   while (digitalRead(DHT11_Data_Pin) != HIGH)
-    if (--loopCnt == 0) { Serial.println("[DHT11] No HIGH"); goto retry; }
+    if (--loopCnt == 0) { Serial.println(F("[DHT11] No HIGH")); goto retry; }
 
   loopCnt = 30000;
   while (digitalRead(DHT11_Data_Pin) != LOW)
-    if (--loopCnt == 0) { Serial.println("[DHT11] No LOW"); goto retry; }
+    if (--loopCnt == 0) { Serial.println(F("[DHT11] No LOW")); goto retry; }
 
   for (int i = 0; i < 40; i++) {
     while (digitalRead(DHT11_Data_Pin) == LOW);
@@ -116,27 +135,27 @@ void parseHttpBody(WiFiClient& client) {
 }
 
 void uploadDataToThingSpeak() {
-  if (!clientThingSpeak.connect(THINGSPEAK_HOST, httpPortThingSpeak)) {
-    Serial.println("[ThingSpeak] Connection failed");
+  if (!clientThingSpeak.connect(THINGSPEAK_HOST, THINGSPEAK_PORT)) {
+    Serial.println(F("[ThingSpeak] Connection failed"));
     return;
   }
 
   String url = "/update?api_key=" + String(THINGSPEAK_SECRET) +
-             "&field1=" + currentTemperature +
-             "&field2=" + currentHumidity +
-             "&field3=" + currentLight +
-             "&field4=" + String(currentPressure_hPa, 2);
+               "&field1=" + currentTemperature +
+               "&field2=" + currentHumidity +
+               "&field3=" + currentLight +
+               "&field4=" + String(currentPressure_hPa, 2);
 
   clientThingSpeak.print("GET " + url + " HTTP/1.1\r\n" +
-                         "Host: " + THINGSPEAK_HOST + "\r\n" +
+                         "Host: " + String(THINGSPEAK_HOST) + "\r\n" +
                          "Connection: close\r\n\r\n");
 
   parseHttpBody(clientThingSpeak);
 }
 
 void uploadDataToSefinek() {
-  if (!clientSefinek.connect(SEFINEK_HOST, httpPortSefinek)) {
-    Serial.println("[Sefinek] Connection failed");
+  if (!clientSefinek.connect(SEFINEK_HOST, SEFINEK_PORT)) {
+    Serial.println(F("[Sefinek] Connection failed"));
     return;
   }
 
@@ -145,13 +164,13 @@ void uploadDataToSefinek() {
                     "&light=" + currentLight +
                     "&pressure=" + String(currentPressure_hPa, 2);
 
-  clientSefinek.print("POST /api/v2/ideaspark/sensors HTTP/1.1\r\n" +
-                      String("Host: ") + SEFINEK_HOST + "\r\n" +
-                      "X-API-Key: " + SEFINEK_SECRET + "\r\n" +
-                      "Content-Type: application/x-www-form-urlencoded\r\n" +
-                      "Content-Length: " + postData.length() + "\r\n" +
-                      "Connection: close\r\n\r\n" +
-                      postData);
+  clientSefinek.print(F("POST /api/v2/ideaspark/sensors HTTP/1.1\r\n"));
+  clientSefinek.print("Host: " + String(SEFINEK_HOST) + "\r\n");
+  clientSefinek.print("X-API-Key: " + String(SEFINEK_SECRET) + "\r\n");
+  clientSefinek.print(F("Content-Type: application/x-www-form-urlencoded\r\n"));
+  clientSefinek.print("Content-Length: " + String(postData.length()) + "\r\n");
+  clientSefinek.print(F("Connection: close\r\n\r\n"));
+  clientSefinek.print(postData);
 
   parseHttpBody(clientSefinek);
 }
@@ -165,13 +184,13 @@ void loop() {
   }
 
   if (millis() - uploadTimeThingSpeak > 60000) {
-    Serial.println("[ThingSpeak] Uploading...");
+    Serial.println(F("[ThingSpeak] Uploading..."));
     uploadDataToThingSpeak();
     uploadTimeThingSpeak = millis();
   }
 
-  if (millis() - uploadTimeSefinek > 35000) {
-    Serial.println("[Sefinek] Uploading...");
+  if (millis() - uploadTimeSefinek > 40000 && strlen(SEFINEK_SECRET) != 0) {
+    Serial.println(F("[Sefinek] Uploading..."));
     uploadDataToSefinek();
     uploadTimeSefinek = millis();
   }

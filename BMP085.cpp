@@ -3,7 +3,6 @@
 Adafruit_BMP085::Adafruit_BMP085() {
 }
 
-
 boolean Adafruit_BMP085::begin(uint8_t mode) {
   if (mode > BMP085_ULTRAHIGHRES) 
     mode = BMP085_ULTRAHIGHRES;
